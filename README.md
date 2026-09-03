@@ -14,5 +14,5 @@ Este repositorio contiene el desarrollo del módulo de administración interna p
 A continuación, puedes revisar los documentos de nuestra entrega. Haz clic en los enlaces para abrir cada archivo:
 
 ### Fase 1: Planificación y Diseño
-* [Informe del Proyecto y Plan de Trabajo](.Fase_1/1.5_GuiaEstudiante_Fase 1_Definicion Proyecto APT (Español).docx)
+* [Informe del Proyecto y Plan de Trabajo](./Fase_1/1.5_GuiaEstudiante_Fase%201_Definicion%20Proyecto%20APT%20(Español).docx)
 * [Presentación - Fase 1](./Fase_1/presentacion_caso_acredittia_fase_1.pdf)
