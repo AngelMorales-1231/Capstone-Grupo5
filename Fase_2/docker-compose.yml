@@ -1,0 +1,128 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: acredittia
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    # log_error_verbosity=terse evita que una violación de NOT NULL o UNIQUE
+    # sobre plataforma_credenciales vuelque la fila —con el JWE— al log (§4.8
+    # del modelo de datos). En Azure se fija como parámetro del servidor.
+    command: >
+      postgres -c log_error_verbosity=terse
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d acredittia"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # El esquema se aplica en un servicio propio, igual que el Container Apps Job
+  # de producción: la API no ejecuta DDL y así varias réplicas no compiten.
+  migrate:
+    build: ./backend
+    command: python -m migrate.run
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/acredittia
+      SCHEMA_DIR: /schema
+    volumes:
+      - ./backend/modelo_datos:/schema:ro
+
+  api:
+    build: ./backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      # En producción este rol es acredittia_app (NOBYPASSRLS). En desarrollo se
+      # usa postgres porque el rol de la app no puede aplicar el esquema y aquí
+      # no hay separación de despliegue.
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/acredittia
+      SCHEMA_DIR: /schema
+      DB_RLS_ENABLED: "true"
+      JWT_SECRET: dev-secret-cambiar-en-produccion
+      CORS_ORIGINS: http://localhost:3000
+      PUBLIC_BASE_URL: http://localhost:8000
+      STORAGE_BACKEND: local          # azure en producción
+      STORAGE_DIR: /data/uploads
+      QUEUE_BACKEND: celery           # inproc para ejecutar sin Redis
+      REDIS_URL: redis://redis:6379/0
+      JWE_BACKEND: local              # keyvault en producción
+      KEYS_DIR: /data/keys
+      IA_BACKEND: simulada            # claude para revisión real
+    volumes:
+      - uploads:/data/uploads
+      - keys:/data/keys
+      - ./backend/modelo_datos:/schema:ro
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: ./backend
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=2
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      # En producción es acredittia_worker: el ÚNICO rol con SELECT sobre
+      # plataforma_credenciales.credencial_jwe (§7.3 del modelo de datos).
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/acredittia
+      SCHEMA_DIR: /schema
+      QUEUE_BACKEND: celery
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_BACKEND: local
+      STORAGE_DIR: /data/uploads
+      JWE_BACKEND: local
+      KEYS_DIR: /data/keys
+      IA_BACKEND: simulada
+    volumes:
+      - uploads:/data/uploads
+      - keys:/data/keys
+      - ./backend/modelo_datos:/schema:ro
+
+  beat:
+    build: ./backend
+    command: celery -A worker.celery_app beat --loglevel=info -s /tmp/celerybeat-schedule
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/acredittia
+      QUEUE_BACKEND: celery
+      REDIS_URL: redis://redis:6379/0
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  uploads:
+  keys:

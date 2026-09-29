@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .btn-primary {
+    @apply rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100;
+  }
+  .input {
+    @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent;
+  }
+  .tabla {
+    @apply w-full text-left text-sm;
+  }
+  .tabla th {
+    @apply border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500;
+  }
+  .tabla td {
+    @apply border-b border-slate-100 px-4 py-2.5 text-slate-700;
+  }
+  .tabla tbody tr {
+    @apply hover:bg-slate-50;
+  }
+}
